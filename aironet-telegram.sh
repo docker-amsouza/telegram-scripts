@@ -34,8 +34,8 @@ tail -F "$LOG" | while read -r line; do
         AP_RAW=$(echo "$line" | grep -oP 'Interface \K[^,]+')
 
         case "$AP_RAW" in
-            Dot11Radio0) AP="VECTRA_GT 2.4G" ;;
-            Dot11Radio1) AP="VECTRA_GT 5G" ;;
+            Dot11Radio0) AP="WIFI 2.4G" ;;
+            Dot11Radio1) AP="WIFI 5G" ;;
             *) AP="$AP_RAW" ;;
         esac
 
@@ -65,8 +65,8 @@ EOF
         AP_RAW=$(echo "$line" | grep -oP 'Interface \K[^,]+')
 
         case "$AP_RAW" in
-            Dot11Radio0) AP="VECTRA_GT 2.4G" ;;
-            Dot11Radio1) AP="VECTRA_GT 5G" ;;
+            Dot11Radio0) AP="WIFI  2.4G" ;;
+            Dot11Radio1) AP="WIFI  5G" ;;
             *) AP="$AP_RAW" ;;
         esac
 
