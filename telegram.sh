@@ -1,45 +1,63 @@
+#!/bin/bash
 # telegram.sh
+#
+# Script simples para enviar mensagens formatadas via Telegram Bot API usando MarkdownV2.
+#
+# Uso:
+#   ./telegram.sh <CHAT_ID> "<ASSUNTO>" "<MENSAGEM>"
+#
+# Exemplo:
+#   ./telegram.sh 123456789 "Alerta" "A porta 1 está inativa."
+#
+# Como criar o bot Telegram e obter TOKEN e CHAT_ID:
+# 1. Converse com @BotFather no Telegram e crie um novo bot (/newbot).
+# 2. Anote o TOKEN gerado (exemplo: 123456789:ABCdefGhIJKlmNoPQRstuVWxyz1234567890).
+# 3. Inicie uma conversa com seu bot e envie qualquer mensagem.
+# 4. Para obter o CHAT_ID, acesse:
+#    https://api.telegram.org/bot<TOKEN>/getUpdates
+# 5. Encontre o campo "chat" no JSON e anote o "id" correspondente.
+#
+# Configuração:
+# - Substitua o valor da variável TOKEN pelo token do seu bot Telegram.
+#
+# Autor: AMSouza
+# Data: 2025-07-27
 
-Script simples para enviar mensagens formatadas via Telegram Bot API usando Markdown.
+TOKEN='SEU_BOT_TOKEN_AQUI'
+CHAT_ID="$1"
+SUBJECT="$2"
+MESSAGE="$3"
 
----
+# Função para escapar caracteres especiais no MarkdownV2
+escape_markdown_v2() {
+  echo "$1" | sed -e 's/\\/\\\\/g' \
+                  -e 's/_/\\_/g' \
+                  -e 's/\*/\\*/g' \
+                  -e 's/\[/\\[/g' \
+                  -e 's/\]/\\]/g' \
+                  -e 's/(/\\(/g' \
+                  -e 's/)/\\)/g' \
+                  -e 's/~/\\~/g' \
+                  -e 's/`/\\`/g' \
+                  -e 's/>/\\>/g' \
+                  -e 's/#/\\#/g' \
+                  -e 's/+/\\+/g' \
+                  -e 's/-/\\-/g' \
+                  -e 's/=/\\=/g' \
+                  -e 's/|/\\|/g' \
+                  -e 's/{/\\{/g' \
+                  -e 's/}/\\}/g' \
+                  -e 's/\./\\./g' \
+                  -e 's/!/\\!/g' \
+                  -e 's/:/\\:/g'
+}
 
-## Uso
+SUBJECT_ESCAPED=$(escape_markdown_v2 "$SUBJECT")
+MESSAGE_ESCAPED=$(escape_markdown_v2 "$MESSAGE")
 
-./telegram.sh <CHAT_ID> "<ASSUNTO>" "<MENSAGEM>"
+curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+    -d chat_id="$CHAT_ID" \
+    -d text="*${SUBJECT_ESCAPED}*\n${MESSAGE_ESCAPED}" \
+    -d parse_mode="MarkdownV2"
 
-Exemplo:  
-./telegram.sh 123456789 "Alerta" "A porta 1 está inativa."
-
----
-
-## Como criar o bot Telegram e obter TOKEN e CHAT_ID
-
-1. Abra o Telegram e converse com o @BotFather.
-2. Envie o comando /newbot e siga as instruções para criar um novo bot.
-3. O BotFather irá fornecer o TOKEN do seu bot.
-4. Inicie uma conversa com seu bot no Telegram (envie qualquer mensagem).
-5. Para descobrir seu CHAT_ID, acesse a URL abaixo substituindo <TOKEN> pelo token do seu bot:  
-   https://api.telegram.org/bot<TOKEN>/getUpdates
-6. Procure o campo "chat" no JSON retornado e anote o valor do "id" — esse é seu CHAT_ID.
-
----
-
-## Configuração
-
-- Edite o arquivo telegram.sh.
-- Substitua o valor da variável TOKEN pelo token do seu bot Telegram.
-- O script recebe 3 parâmetros: CHAT_ID, assunto e mensagem.
-
----
-
-## Exemplo de execução
-
-./telegram.sh 123456789 "Alerta" "O servidor está offline."
-
----
-
-## Autor
-
-AMSouza  
-Data: 2025-07-27
+exit 0
