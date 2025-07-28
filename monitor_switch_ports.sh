@@ -15,8 +15,10 @@
 TOKEN="SEU_BOT_TOKEN_AQUI"
 CHAT_ID="SEU_CHAT_ID_AQUI"
 COMMUNITY="public"
-TELEGRAM_SCRIPT="/usr/lib/zabbix/alertscripts/telegram.sh"
+TELEGRAM_SCRIPT="./telegram.sh"  # Caminho para o script de envio Telegram
 STATUS_DIR="/tmp/status_switch_ports"
+
+mkdir -p "$STATUS_DIR"
 
 # Lista de switches para monitorar
 # Formato:
@@ -26,51 +28,41 @@ switches=(
   "192.168.1.2|Switch-Backup|1:Core,3:Firewall"
 )
 
-# Função para enviar alerta via Telegram
 send_telegram() {
     local message="$1"
-    curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-         -d chat_id="$CHAT_ID" \
-         --data-urlencode "text=$message" >/dev/null
+    "$TELEGRAM_SCRIPT" "$TOKEN" "$CHAT_ID" "$message"
 }
 
-# Criar diretório para status se não existir
-mkdir -p "$STATUS_DIR"
-
-# Loop para monitorar switches
 for switch_entry in "${switches[@]}"; do
     IFS='|' read -r ip switch_name ports <<< "$switch_entry"
 
-    # Montar array de portas e descrições
     declare -A port_desc
     IFS=',' read -ra port_pairs <<< "$ports"
     for pair in "${port_pairs[@]}"; do
-        IFS=':' read -r port num_desc <<< "$pair"
-        port_desc["$port"]="$num_desc"
+        IFS=':' read -r port desc <<< "$pair"
+        port_desc["$port"]="$desc"
     done
 
-    # Obter lista de interfaces e status via SNMP (ifOperStatus: 1=up, 2=down)
-    # O OID ifOperStatus: 1.3.6.1.2.1.2.2.1.8
+    # SNMP walk do status das portas (ifOperStatus: 1=up, 2=down)
     snmpwalk -v2c -c "$COMMUNITY" "$ip" 1.3.6.1.2.1.2.2.1.8 | while read -r line; do
-        # Exemplo de saída: IF-MIB::ifOperStatus.1 = INTEGER: up(1)
         if [[ "$line" =~ \.([0-9]+)\ =\ INTEGER:\ ([a-z]+)\(([0-9]+)\) ]]; then
             port_num="${BASH_REMATCH[1]}"
             status="${BASH_REMATCH[2]}" # up ou down
 
             desc="${port_desc[$port_num]:-Porta $port_num}"
             prev_status_file="$STATUS_DIR/$ip-$port_num.status"
-
             prev_status=""
             if [[ -f "$prev_status_file" ]]; then
                 prev_status=$(<"$prev_status_file")
             fi
 
-            # Se status mudou, envia alerta
             if [[ "$status" != "$prev_status" ]]; then
-                message="🔔 Switch: $switch_name ($ip)
-Porta: $desc ($port_num)
-Status: $status
-⏰ $(date '+%d/%m/%Y %H:%M:%S')"
+                # Monta mensagem formatada em Markdown
+                message="🔔 *Alerta de Porta no Switch*\n"
+                message+="🖧 *Switch:* $switch_name ($ip)\n"
+                message+="📌 *Porta:* $desc ($port_num)\n"
+                message+="📡 *Status:* \`$status\`\n"
+                message+="⏰ $(date '+%d/%m/%Y %H:%M:%S')"
 
                 send_telegram "$message"
 
@@ -84,14 +76,16 @@ done
 
 # Quando a porta ficar **ativa** (up):
 #
-# 🔔 Switch: Switch-Core
-# Porta: Porta Principal (1)
-# Status: up
-# ⏰ 28/07/2025 09:12:00
+# 🔔 Alerta de Porta no Switch
+# 🖧 Switch: Switch-Exemplo (192.168.1.1)
+# 📌 Porta: Porta Principal (1)
+# 📡 Status: up
+# ⏰ 28/07/2025 18:00:00
 #
 # Quando a porta ficar **inativa** (down):
 #
-# 🔔 Switch: Switch-Core
-# Porta: Porta Principal (1)
-# Status: down
-# ⏰ 28/07/2025 09:12:00
+# 🔔 Alerta de Porta no Switch
+# 🖧 Switch: Switch-Exemplo (192.168.1.1)
+# 📌 Porta: Porta Principal (1)
+# 📡 Status: down
+# ⏰ 28/07/2025 18:15:43
