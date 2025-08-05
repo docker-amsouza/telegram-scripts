@@ -11,81 +11,98 @@
 # 5. Na resposta JSON, encontre o campo "chat" e copie o "id".
 # 6. Use esse valor na variável CHAT_ID abaixo.
 #
-# Configuração:
-TOKEN="SEU_BOT_TOKEN_AQUI"
-CHAT_ID="SEU_CHAT_ID_AQUI"
+# Configurações
 COMMUNITY="public"
-TELEGRAM_SCRIPT="./telegram.sh"  # Caminho para o script de envio Telegram
-STATUS_DIR="/tmp/status_switch_ports"
+CHAT_ID="SEU_CHAT_ID_AQUI"
+STATUS_DIR="/tmp/status_portas"
+TELEGRAM_SCRIPT="/usr/lib/zabbix/alertscripts/telegram.sh"
+LOG_FILE="/tmp/monitor_switch_ports.log"
 
 mkdir -p "$STATUS_DIR"
 
-# Lista de switches para monitorar
-# Formato:
-# "IP_DO_SWITCH|NOME_DO_SWITCH|PORTA1:DESC1,PORTA2:DESC2,..."
+echo "$(date '+%F %T') - Início do monitoramento" >> "$LOG_FILE"
+
+# Array com switches no formato: IP|Nome|Porta:Descrição,...
 switches=(
-  "192.168.1.1|Switch-Exemplo|1:Porta Principal,2:Servidor,5:Access Point"
-  "192.168.1.2|Switch-Backup|1:Core,3:Firewall"
+  "192.168.0.1|🖧 SWITCH_1|1:Servidor,2:Firewall"
+  "192.168.0.2|🖧 SWITCH_2|3:Access-Point,5:Impressora"
 )
 
-send_telegram() {
-    local message="$1"
-    "$TELEGRAM_SCRIPT" "$TOKEN" "$CHAT_ID" "$message"
-}
+for entry in "${switches[@]}"; do
+  IFS='|' read -r ip name portas_descr <<< "$entry"
 
-for switch_entry in "${switches[@]}"; do
-    IFS='|' read -r ip switch_name ports <<< "$switch_entry"
+  declare -A descricoes=()
+  IFS=',' read -ra pares <<< "$portas_descr"
+  for par in "${pares[@]}"; do
+    IFS=':' read -r porta desc <<< "$par"
+    descricoes["$porta"]="$desc"
+  done
 
-    declare -A port_desc
-    IFS=',' read -ra port_pairs <<< "$ports"
-    for pair in "${port_pairs[@]}"; do
-        IFS=':' read -r port desc <<< "$pair"
-        port_desc["$port"]="$desc"
-    done
+  # SNMP consulta (corrigido para não usar subshell)
+  while read -r line; do
+    if [[ "$line" =~ \.([0-9]+)\ =\ INTEGER:\ ([0-9]+) ]]; then
+      porta="${BASH_REMATCH[1]}"
+      status="${BASH_REMATCH[2]}"
 
-    # SNMP walk do status das portas (ifOperStatus: 1=up, 2=down)
-    snmpwalk -v2c -c "$COMMUNITY" "$ip" 1.3.6.1.2.1.2.2.1.8 | while read -r line; do
-        if [[ "$line" =~ \.([0-9]+)\ =\ INTEGER:\ ([a-z]+)\(([0-9]+)\) ]]; then
-            port_num="${BASH_REMATCH[1]}"
-            status="${BASH_REMATCH[2]}" # up ou down
+      STATUS_FILE="$STATUS_DIR/${ip//./_}_porta_${porta}.status"
+      old_status=""
+      [ -f "$STATUS_FILE" ] && old_status=$(<"$STATUS_FILE")
 
-            desc="${port_desc[$port_num]:-Porta $port_num}"
-            prev_status_file="$STATUS_DIR/$ip-$port_num.status"
-            prev_status=""
-            if [[ -f "$prev_status_file" ]]; then
-                prev_status=$(<"$prev_status_file")
-            fi
+      echo "$(date '+%F %T') - Switch $name, porta $porta, status atual: $status, status antigo: $old_status" >> "$LOG_FILE"
 
-            if [[ "$status" != "$prev_status" ]]; then
-                # Monta mensagem formatada em Markdown
-                message="🔔 *Alerta de Porta no Switch*\n"
-                message+="🖧 *Switch:* $switch_name ($ip)\n"
-                message+="📌 *Porta:* $desc ($port_num)\n"
-                message+="📡 *Status:* \`$status\`\n"
-                message+="⏰ $(date '+%d/%m/%Y %H:%M:%S')"
+      if [ "$status" != "$old_status" ]; then
+        echo "$status" > "$STATUS_FILE"
 
-                send_telegram "$message"
+        case "$status" in
+          1)
+            emoji="✅"
+            estado="ATIVA (UP)"
+            ;;
+          2)
+            emoji="🚨"
+            estado="INATIVA (DOWN)"
+            ;;
+          *)
+            emoji="❓"
+            estado="DESCONHECIDA"
+            ;;
+        esac
 
-                echo "$status" > "$prev_status_file"
-            fi
-        fi
-    done
+        descricao="${descricoes[$porta]:-Porta $porta}"
+
+        # Escapa caracteres especiais para Markdown Telegram
+        descricao_esc=$(echo "$descricao" | sed -e 's/_/\\_/g' -e 's/\*/\\*/g' -e 's/\[/\\[/g' -e 's/\]/\\]/g' -e 's/(/\\(/g' -e 's/)/\\)/g')
+
+        mensagem="🔔 *Alerta de Porta no Switch* $name\n"
+        mensagem+="$emoji A porta *$porta* (_$descricao_esc_) está agora *$estado*\n"
+        mensagem+="🖧 Switch: $name\n"
+        mensagem+="📍 IP: $ip"
+
+        assunto="Alerta Porta Switch"
+
+        echo "$(date '+%F %T') - Enviando alerta para porta $porta no switch $name com status $status" >> "$LOG_FILE"
+
+        # Envia alerta via Telegram
+        "$TELEGRAM_SCRIPT" "$CHAT_ID" "$assunto" "$mensagem"
+      fi
+    fi
+  done < <(snmpwalk -v2c -c "$COMMUNITY" "$ip" 1.3.6.1.2.1.2.2.1.8 2>/dev/null)
+
+  unset descricoes
 done
 
 # Exemplo de notificação que você receberá no Telegram:
 
 # Quando a porta ficar **ativa** (up):
 #
-# 🔔 Alerta de Porta no Switch
-# 🖧 Switch: Switch-Exemplo (192.168.1.1)
-# 📌 Porta: Porta Principal (1)
-# 📡 Status: up
-# ⏰ 28/07/2025 18:00:00
+# 🔔 Switch: SWITCH_1
+# Porta: Servidor (1)
+# Status: up
+# ⏰ 05/08/2025 06:17:00
 #
 # Quando a porta ficar **inativa** (down):
 #
-# 🔔 Alerta de Porta no Switch
-# 🖧 Switch: Switch-Exemplo (192.168.1.1)
-# 📌 Porta: Porta Principal (1)
-# 📡 Status: down
-# ⏰ 28/07/2025 18:15:43
+# 🔔 Switch: SWITCH_2
+# Porta: Firewall (2)
+# Status: down
+# ⏰ 05/08/2025 06:17:00
