@@ -22,7 +22,7 @@ mkdir -p "$STATUS_DIR"
 
 echo "$(date '+%F %T') - Início do monitoramento" >> "$LOG_FILE"
 
-# Array com switches no formato: IP|Nome|Porta:Descrição,...
+# Lista de switches no formato: IP|Nome|Porta:Descrição,...
 switches=(
   "192.168.0.1|🖧 SWITCH_1|1:Servidor,2:Firewall"
   "192.168.0.2|🖧 SWITCH_2|3:Access-Point,5:Impressora"
@@ -38,7 +38,6 @@ for entry in "${switches[@]}"; do
     descricoes["$porta"]="$desc"
   done
 
-  # SNMP consulta (corrigido para não usar subshell)
   while read -r line; do
     if [[ "$line" =~ \.([0-9]+)\ =\ INTEGER:\ ([0-9]+) ]]; then
       porta="${BASH_REMATCH[1]}"
@@ -69,8 +68,6 @@ for entry in "${switches[@]}"; do
         esac
 
         descricao="${descricoes[$porta]:-Porta $porta}"
-
-        # Escapa caracteres especiais para Markdown Telegram
         descricao_esc=$(echo "$descricao" | sed -e 's/_/\\_/g' -e 's/\*/\\*/g' -e 's/\[/\\[/g' -e 's/\]/\\]/g' -e 's/(/\\(/g' -e 's/)/\\)/g')
 
         mensagem="🔔 *Alerta de Porta no Switch* $name\n"
@@ -82,7 +79,6 @@ for entry in "${switches[@]}"; do
 
         echo "$(date '+%F %T') - Enviando alerta para porta $porta no switch $name com status $status" >> "$LOG_FILE"
 
-        # Envia alerta via Telegram
         "$TELEGRAM_SCRIPT" "$CHAT_ID" "$assunto" "$mensagem"
       fi
     fi
@@ -91,18 +87,16 @@ for entry in "${switches[@]}"; do
   unset descricoes
 done
 
-# Exemplo de notificação que você receberá no Telegram:
+# Exemplo real de notificação que você receberá no Telegram:
 
-# Quando a porta ficar **ativa** (up):
+# Quando a porta ficar **ativa** (UP):
+# 🔔 *Alerta de Porta no Switch* SWITCH_1
+# ✅ A porta *1* (_Servidor_) está agora *ATIVA (UP)*
+# 🖧 Switch: SWITCH_1
+# 📍 IP: 192.168.0.1
 #
-# 🔔 Switch: SWITCH_1
-# Porta: Servidor (1)
-# Status: up
-# ⏰ 05/08/2025 06:17:00
-#
-# Quando a porta ficar **inativa** (down):
-#
-# 🔔 Switch: SWITCH_2
-# Porta: Firewall (2)
-# Status: down
-# ⏰ 05/08/2025 06:17:00
+# Quando a porta ficar **inativa** (DOWN):
+# 🔔 *Alerta de Porta no Switch* SWITCH_2
+# 🚨 A porta *2* (_Firewall_) está agora *INATIVA (DOWN)*
+# 🖧 Switch: SWITCH_2
+# 📍 IP: 192.168.0.2
