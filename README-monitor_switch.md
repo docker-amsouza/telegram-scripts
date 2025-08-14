@@ -1,49 +1,46 @@
-# monitor_switch_ports.sh
+# Monitor Switch Ports
 
-Script para monitorar status das portas dos switches via SNMP  
-e enviar alertas no Telegram quando o status mudar.
+Script em Bash para monitorar o status das portas de switches via SNMP e enviar alertas para o Telegram quando o status mudar.
 
----
+## 📌 Funcionalidades
+- Consulta SNMP para verificar status **UP/DOWN** das portas.
+- Envia mensagens formatadas para um chat no Telegram.
+- Salva estado anterior das portas para evitar alertas repetidos.
 
-## Como criar o bot Telegram e obter TOKEN e CHAT_ID
+## 🛠 Requisitos
+- **Bash**
+- **SNMP** (`snmpwalk`)
+- Bot do Telegram configurado
+- Script auxiliar `telegram.sh`
 
-1. Abra o Telegram e inicie uma conversa com o @BotFather (https://t.me/BotFather).  
-2. Envie o comando `/newbot` e siga as instruções para criar um novo bot.  
-3. O @BotFather fornecerá o TOKEN do bot (exemplo: 123456789:ABCdefGhIJKlmNoPQRstuVWxyz1234567890).  
-4. Salve este TOKEN e cole na variável TOKEN do seu script (ou no script telegram.sh).
+## ⚙️ Configuração
 
-Para descobrir seu CHAT_ID:  
-1. Inicie uma conversa com seu bot no Telegram (procure o username do bot e envie uma mensagem qualquer).  
-2. Acesse a URL abaixo substituindo `<TOKEN>` pelo token do seu bot:  
+### Criando o Bot no Telegram e obtendo TOKEN e CHAT_ID
+1. Abra o Telegram e inicie uma conversa com o **@BotFather**.
+2. Envie o comando `/newbot` e siga as instruções para criar um novo bot.
+3. O BotFather fornecerá o **TOKEN** (exemplo: `123456789:ABCdefGhIJKlmNoPQRstuVWxyz1234567890`).
+4. Salve este TOKEN no script `telegram.sh` ou no seu script principal.
+
+**Para descobrir seu CHAT_ID:**
+1. Inicie uma conversa com seu bot no Telegram (procure pelo username do bot e envie qualquer mensagem).
+2. Acesse no navegador:  
    https://api.telegram.org/bot<TOKEN>/getUpdates  
-3. Na resposta JSON, encontre o campo `"chat"` e anote o valor do `"id"`.  
-4. Cole esse valor na variável CHAT_ID do script.
+   (substitua `<TOKEN>` pelo token do seu bot).
+3. Na resposta JSON, encontre o campo `"chat"` e anote o valor de `"id"`.
+4. Cole este valor na variável `CHAT_ID` do script.
 
 ---
 
-## Configuração
+### Editando o Script
+No arquivo `monitor_switch_ports.sh` configure:
+- `TOKEN` → Token do seu bot Telegram (no `telegram.sh` ou direto no script)
+- `CHAT_ID` → Seu chat_id no Telegram
+- `COMMUNITY` → Comunidade SNMP (exemplo: `"public"`)
+- `TELEGRAM_SCRIPT` → Caminho para o script que envia mensagens
+- `STATUS_DIR` → Diretório para armazenar o status anterior
+- `switches` → Lista de switches e portas a monitorar
 
-Edite as variáveis no script:
-
-- `TOKEN`: token do seu bot Telegram (normalmente configurado no script de envio de mensagens).  
-- `CHAT_ID`: seu chat_id do Telegram.  
-- `COMMUNITY`: comunidade SNMP (exemplo: "public").  
-- `TELEGRAM_SCRIPT`: caminho para o script que envia mensagens ao Telegram.  
-- `STATUS_DIR`: diretório onde o status anterior das portas será armazenado.  
-- `switches`: lista dos seus switches no formato:
-
----
-
-## Uso
-
-Execute o script para monitorar o status das portas dos switches e enviar alertas via Telegram quando houver mudanças:
-
-./monitor_switch_ports.sh
-
----
-
-## Exemplo de entrada na variável switches
-
+**Exemplo de entrada para `switches`:**
 switches=(
   "192.168.1.1|Switch-Exemplo|1:Porta Principal,2:Servidor,5:Access Point"
   "192.168.1.2|Switch-Backup|1:Core,3:Firewall"
@@ -51,5 +48,12 @@ switches=(
 
 ---
 
-Autor: AMSouza  
-Data: 2025-07-27
+## ▶ Uso
+Dê permissão de execução e execute:
+chmod +x monitor_switch_ports.sh
+./monitor_switch_ports.sh
+
+---
+
+**Autor:** AMSouza  
+**Data:** 27/07/2025
