@@ -11,6 +11,9 @@
 # 5. Na resposta JSON, encontre o campo "chat" e copie o "id".
 # 6. Use esse valor na variável CHAT_ID abaixo.
 #
+# Autor: AMSouza
+# Data: 2025-07-27
+#
 # Configurações
 COMMUNITY="public"
 CHAT_ID="SEU_CHAT_ID_AQUI"
